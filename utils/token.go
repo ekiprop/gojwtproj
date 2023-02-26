@@ -16,7 +16,7 @@ import (
 
 var privateKey = []byte(os.Getenv("API_SECRET"))
 
-func GenerateToken(user model.User) (string, error) {
+func GenerateToken(user models.User) (string, error) {
 
 	tokenLifespan, err := strconv.Atoi(os.Getenv("TOKEN_HOUR_LIFESPAN"))
 
@@ -30,7 +30,7 @@ func GenerateToken(user model.User) (string, error) {
 	claims["exp"] = time.Now().Add(time.Hour * time.Duration(tokenLifespan)).Unix()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
-	return token.SignedString([]byte(os.Getenv("API_SECRET")))
+	return token.SignedString(privateKey)
 
 }
 
@@ -47,6 +47,22 @@ func ValidateToken(c *gin.Context) error {
 	}
 
 	return errors.New("Invalid token provided")
+}
+
+func CurrentUser(c *gin.Context) (models.User, error) {
+	err := ValidateToken(c)
+	if err != nil {
+		return models.User{}, err
+	}
+	token, _ := GetToken(c)
+	claims, _ := token.Claims.(jwt.MapClaims)
+	userId := uint(claims["id"].(float64))
+
+	user, err := models.GetUserById(userId)
+	if err != nil {
+		return models.User{}, err
+	}
+	return user, nil
 }
 
 func GetToken(c *gin.Context) (*jwt.Token, error) {
@@ -69,20 +85,4 @@ func getTokenFromRequest(c *gin.Context) string {
 		return splitToken[1]
 	}
 	return ""
-}
-
-func CurrentUser(c *gin.Context) (models.User, error) {
-	err := ValidateToken(c)
-	if err != nil {
-		return models.User{}, err
-	}
-	token, _ := GetToken(c)
-	claims, _ := token.Claims.(jwt.MapClaims)
-	userId := uint(claims["id"].(float64))
-
-	user, err := models.GetUserById(userId)
-	if err != nil {
-		return models.User{}, err
-	}
-	return user, nil
 }

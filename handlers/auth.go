@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/ekiprop/gojwtproj/models"
 	"github.com/ekiprop/gojwtproj/utils"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -43,7 +45,52 @@ func (s *Server) Register(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "User created"})
+	c.JSON(http.StatusCreated, gin.H{"user": user, "message": "User created"})
+}
+
+func (s *Server) Login(c *gin.Context) {
+	var input LoginInput
+
+	if err := c.ShouldBind(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	user := models.User{Username: input.Username, Password: input.Password}
+
+	token, err := s.LoginCheck(user.Username, user.Password)
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The username or password is not correct"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"token": token})
+}
+
+func (s *Server) CurrentUser(c *gin.Context) {
+	err := utils.ValidateToken(c)
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	token, err := utils.GetToken(c)
+	if err != nil {
+		log.Println(err)
+	}
+	claims, _ := token.Claims.(jwt.MapClaims)
+
+	userId := uint(claims["id"].(float64))
+
+	user, err := models.GetUserById(userId)
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Success", "data": user})
 }
 
 func (s *Server) LoginCheck(username, password string) (string, error) {
@@ -71,22 +118,14 @@ func (s *Server) LoginCheck(username, password string) (string, error) {
 
 }
 
-func (s *Server) Login(c *gin.Context) {
-	var input LoginInput
+func (s *Server) GetUserById(c *gin.Context) {
+	var user models.User
 
-	if err := c.ShouldBind(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := s.db.Model(models.User{}).Where("ID=?", c.Param("id")).First(&user).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
+
 	}
 
-	user := models.User{Username: input.Username, Password: input.Password}
-
-	token, err := models.LoginCheck(user.Username, user.Password)
-
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "The username or password is not correct"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"token": token})
+	c.JSON(http.StatusOK, gin.H{"message": "Success", "data": user})
 }
