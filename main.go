@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/ekiprop/gojwtproj/handlers"
+	"github.com/ekiprop/gojwtproj/middleware"
 	"github.com/ekiprop/gojwtproj/models"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -30,6 +31,11 @@ func SetupRouter() *gin.Engine {
 
 	router.POST("/register", server.Register)
 	router.POST("/login", server.Login)
+
+	authorized := r.Group("/api/admin")
+	authorized.Use(middleware.JwtAuthMiddleware())
+	authorized.GET("/groceries", server.GetGroceries)
+	authorized.POST("/grocery", server.PostGrocery)
 
 	return r
 

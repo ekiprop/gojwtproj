@@ -1,7 +1,9 @@
 package models
 
 import (
+	"errors"
 	"html"
+	"log"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
@@ -10,8 +12,26 @@ import (
 
 type User struct {
 	gorm.Model
-	Username string `gorm:"size:255;not null;unique" json:"username"`
-	Password string `gorm:"size:255;not null;" json:"-"`
+	Username  string `gorm:"size:255;not null;unique" json:"username"`
+	Password  string `gorm:"size:255;not null;" json:"-"`
+	Groceries []Grocery
+}
+
+func GetUserById(uid uint) (User, error) {
+	var user User
+
+	db, err := Setup()
+
+	if err != nil {
+		log.Println(err)
+		return User{}, err
+	}
+	if err := db.Preload("Groceries").Where("id=?", uid).Find(&user).Error; err != nil {
+		return user, errors.New("user not found")
+
+	}
+
+	return user, nil
 }
 
 func (user *User) HashPassword() error {
@@ -25,4 +45,8 @@ func (user *User) HashPassword() error {
 	user.Username = html.EscapeString(strings.TrimSpace(user.Username))
 
 	return nil
+}
+
+func VerifyPassword(password, hashedPassword string) error {
+	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 }

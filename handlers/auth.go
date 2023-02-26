@@ -4,7 +4,9 @@ import (
 	"net/http"
 
 	"github.com/ekiprop/gojwtproj/models"
+	"github.com/ekiprop/gojwtproj/utils"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -44,6 +46,47 @@ func (s *Server) Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "User created"})
 }
 
-func (s *Server) Login(c *gin.Context) {
+func (s *Server) LoginCheck(username, password string) (string, error) {
+	var err error
 
+	user := models.User{}
+
+	if err = s.db.Model(models.User{}).Where("username=?", username).Take(&user).Error; err != nil {
+		return "", err
+	}
+
+	err = models.VerifyPassword(password, user.Password)
+
+	if err != nil && err == bcrypt.ErrMismatchedHashAndPassword {
+		return "", err
+	}
+
+	token, err := utils.GenerateToken(user)
+
+	if err != nil {
+		return "", err
+	}
+
+	return token, nil
+
+}
+
+func (s *Server) Login(c *gin.Context) {
+	var input LoginInput
+
+	if err := c.ShouldBind(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	user := models.User{Username: input.Username, Password: input.Password}
+
+	token, err := models.LoginCheck(user.Username, user.Password)
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "The username or password is not correct"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"token": token})
 }
