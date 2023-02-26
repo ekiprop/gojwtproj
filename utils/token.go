@@ -14,6 +14,8 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
+var privateKey = []byte(os.Getenv("API_SECRET"))
+
 func GenerateToken(user model.User) (string, error) {
 
 	tokenLifespan, err := strconv.Atoi(os.Getenv("TOKEN_HOUR_LIFESPAN"))
